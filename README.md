@@ -52,3 +52,20 @@ php worker/export-project.php 1
 ## Stato attuale
 
 Il repo e separato dal diario personale e la preview usa una snapshot locale del renderer sotto `renderer/`. Il coupling residuo non e piu runtime, ma solo di manutenzione: quando cambia il renderer vero, questa snapshot va riallineata.
+
+## Sync renderer
+
+Per riallineare la snapshot locale del renderer senza farlo a mano:
+
+```bash
+python3 scripts/sync-renderer.py '/percorso/al/repo-renderer/site'
+node --check renderer/app.js
+```
+
+Lo script:
+
+- copia `app.js`, `styles.css` e l'immagine hero dal renderer sorgente
+- riapplica le patch necessarie alla preview Studio
+- fallisce se i marker attesi nel renderer sorgente non esistono piu
+
+Questa parte non e elegante, ma e onesta: finche Studio mantiene una snapshot locale del renderer, serve un sync esplicito e verificabile.
