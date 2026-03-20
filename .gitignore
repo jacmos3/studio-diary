@@ -1,0 +1,6 @@
+.DS_Store
+storage/studio.sqlite
+storage/uploads/
+storage/processed/
+exported/*
+!exported/.gitignore
