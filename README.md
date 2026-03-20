@@ -14,7 +14,7 @@ Questo repo non contiene il diario pubblico finale. Contiene lo Studio editorial
 ## Avvio locale
 
 ```bash
-cd /Volumes/HardDisk/Cammino\ di\ Santiago/diary-studio
+cd /Volumes/HardDisk/diary-studio
 STUDIO_ADMIN_PASSWORD=studio-dev php -S 127.0.0.1:4184 -t .
 ```
 
