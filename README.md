@@ -25,10 +25,7 @@ Apri `http://127.0.0.1:4184/`
 Variabili utili:
 
 - `STUDIO_ADMIN_PASSWORD`
-- `STUDIO_RENDERER_ORIGIN`
 - `STUDIO_REVERSE_GEOCODE_TEMPLATE`
-
-`STUDIO_RENDERER_ORIGIN` punta al renderer del diario usato dalla preview. Default: `http://127.0.0.1:4173`.
 
 ## Storage locale
 
@@ -54,4 +51,4 @@ php worker/export-project.php 1
 
 ## Stato attuale
 
-Il repo e separato dal diario personale, ma la preview usa ancora JS/CSS del renderer esterno configurato con `STUDIO_RENDERER_ORIGIN`. Il prossimo step e spezzare anche quel coupling.
+Il repo e separato dal diario personale e la preview usa una snapshot locale del renderer sotto `renderer/`. Il coupling residuo non e piu runtime, ma solo di manutenzione: quando cambia il renderer vero, questa snapshot va riallineata.

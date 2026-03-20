@@ -4,7 +4,6 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/lib/bootstrap.php';
 require_once dirname(__DIR__) . '/lib/store.php';
 
-$publicOrigin = studio_renderer_origin();
 $slug = trim((string)($_GET['project'] ?? ''));
 $project = $slug !== '' ? studio_get_project_by_slug($slug) : null;
 if (!$project) {
@@ -18,8 +17,12 @@ $payload = json_decode((string)$payloadRaw, true);
 if (!is_array($payload)) {
   throw new RuntimeException('Entries export non valido');
 }
+$rendererVersion = (string)max((int)(@filemtime(dirname(__DIR__) . '/renderer/app.js') ?: 0), (int)(@filemtime(dirname(__DIR__) . '/renderer/styles.css') ?: 0));
 $bootstrap = [
   'entriesData' => $payload,
+  'previewMode' => true,
+  'previewBaseUrl' => '/preview/',
+  'projectSlug' => $project['slug'],
 ];
 function h(string $value): string {
   return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -37,7 +40,7 @@ function h(string $value): string {
   <link id="seo-alt-es" rel="alternate" hreflang="es" href="./?project=<?= rawurlencode($project['slug']) ?>" />
   <link id="seo-alt-fr" rel="alternate" hreflang="fr" href="./?project=<?= rawurlencode($project['slug']) ?>" />
   <link id="seo-alt-default" rel="alternate" hreflang="x-default" href="./?project=<?= rawurlencode($project['slug']) ?>" />
-  <link rel="stylesheet" href="<?= h($publicOrigin) ?>/styles.css" />
+  <link rel="stylesheet" href="/renderer/styles.css?v=<?= h($rendererVersion) ?>" />
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -68,7 +71,7 @@ function h(string $value): string {
             </select>
           </div>
           <div class="manage-tools">
-            <a class="map-link" href="/"><?= h('Torna allo Studio') ?></a>
+            <a class="map-link" data-static-link="1" href="/"><?= h('Torna allo Studio') ?></a>
           </div>
         </div>
       </div>
@@ -120,7 +123,7 @@ function h(string $value): string {
 
   <footer class="footer" id="footer">
     <div class="footer__inner">
-      <div class="footer__note">Preview renderizzata con lo stesso frontend del diario pubblico, ma su dati Studio separati.</div>
+      <div class="footer__note">Preview renderizzata con una snapshot locale del renderer, su dati Studio separati.</div>
     </div>
   </footer>
 
@@ -154,6 +157,6 @@ function h(string $value): string {
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
     crossorigin=""
   ></script>
-  <script src="<?= h($publicOrigin) ?>/app.js?v=20260304-13"></script>
+  <script src="/renderer/app.js?v=<?= h($rendererVersion) ?>"></script>
 </body>
 </html>

@@ -79,10 +79,6 @@ function studio_admin_password(): string {
   return '';
 }
 
-function studio_renderer_origin(): string {
-  $value = trim((string)studio_env('STUDIO_RENDERER_ORIGIN', 'http://127.0.0.1:4173'));
-  return $value !== '' ? rtrim($value, '/') : 'http://127.0.0.1:4173';
-}
 
 function studio_is_authenticated(): bool {
   return !empty($_SESSION['studio_authenticated']) && $_SESSION['studio_authenticated'] === true;
