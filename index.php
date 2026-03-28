@@ -223,9 +223,19 @@ declare(strict_types=1);
                 </form>
                 <div id="media-list" class="resource-list top-gap"></div>
               </div>
-              <div>
-                <h4>Job in coda</h4>
-                <div id="jobs-list" class="resource-list"></div>
+              <div class="stack">
+                <div>
+                  <h4>Tracce GPX</h4>
+                  <form id="track-upload-form" class="stack">
+                    <input id="track-files" type="file" accept=".gpx,application/gpx+xml" multiple />
+                    <button type="submit" class="btn btn--primary">Importa GPX</button>
+                  </form>
+                  <div id="tracks-list" class="resource-list top-gap"></div>
+                </div>
+                <div>
+                  <h4>Job in coda</h4>
+                  <div id="jobs-list" class="resource-list"></div>
+                </div>
               </div>
             </div>
           </div>

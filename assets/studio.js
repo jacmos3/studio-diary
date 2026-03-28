@@ -67,6 +67,9 @@ const el = {
   mediaUploadForm: document.getElementById('media-upload-form'),
   mediaFiles: document.getElementById('media-files'),
   mediaList: document.getElementById('media-list'),
+  trackUploadForm: document.getElementById('track-upload-form'),
+  trackFiles: document.getElementById('track-files'),
+  tracksList: document.getElementById('tracks-list'),
   jobsList: document.getElementById('jobs-list')
 };
 
@@ -92,6 +95,11 @@ const escapeHtml = (value) =>
   }[ch] || ch));
 
 const escapeRegExp = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const formatDistanceKm = (value) => {
+  const num = Number(value);
+  return Number.isFinite(num) && num > 0 ? `${num.toFixed(2)} km` : '0.00 km';
+};
 
 const normalizePersonName = (value) => String(value || '').trim().replace(/\s+/g, ' ');
 
@@ -384,7 +392,7 @@ const renderDays = () => {
           <strong>${escapeHtml(day.date)}</strong>
           <div class="day-item__meta">${escapeHtml(day.title || 'Titolo non impostato')}</div>
           <div class="day-item__meta">${escapeHtml(day.arrival_place || 'Luogo arrivo non impostato')}</div>
-          <div class="day-item__meta">${escapeHtml(day.processing_state || 'idle')} · ${Number(day.media_count || 0)} media</div>
+          <div class="day-item__meta">${escapeHtml(day.processing_state || 'idle')} · ${Number(day.media_count || 0)} media · ${Number(day.tracks_count || 0)} tracce</div>
         </button>
       </div>
     `;
@@ -405,6 +413,7 @@ const renderDayEditor = () => {
     el.dayDeleteBtn.classList.add('hidden');
     el.dayForm.reset();
     el.mediaList.innerHTML = '<div class="empty-state">Nessun giorno selezionato.</div>';
+    el.tracksList.innerHTML = '<div class="empty-state">Nessuna traccia GPX.</div>';
     el.jobsList.innerHTML = '<div class="empty-state">Nessun job.</div>';
     state.dayPeople = [];
     state.detectedPeopleSuggestions = [];
@@ -475,6 +484,43 @@ const renderDayEditor = () => {
         renderDayEditor();
         if (state.currentProject) await loadDays(state.currentProject.id);
         showStatus('Media eliminato.');
+      } catch (error) {
+        showStatus(error.message || String(error), true);
+      }
+    });
+  });
+
+  const tracks = Array.isArray(day.tracks) ? day.tracks : [];
+  el.tracksList.innerHTML = tracks.length ? tracks.map((track) => {
+    const startedAt = track.metadata && track.metadata.started_at ? String(track.metadata.started_at) : '';
+    const endedAt = track.metadata && track.metadata.ended_at ? String(track.metadata.ended_at) : '';
+    const timeMeta = startedAt && endedAt ? `${startedAt} → ${endedAt}` : (startedAt || endedAt || '');
+    return `
+      <div class="resource-item resource-item--track">
+        <div class="resource-item__content">
+          <strong>${escapeHtml(track.source_filename || 'track.gpx')}</strong>
+          <div class="resource-item__meta">${escapeHtml(track.source_type || 'gpx')} · ${escapeHtml(track.processing_state || 'ready')}</div>
+          <div class="resource-item__meta">${Number(track.point_count || 0)} punti · ${escapeHtml(formatDistanceKm(track.distance_km || 0))}</div>
+          ${timeMeta ? `<div class="resource-item__meta">${escapeHtml(timeMeta)}</div>` : ''}
+        </div>
+        <div class="resource-item__actions">
+          <button type="button" class="btn btn--small btn--danger" data-track-delete="${track.id}">Elimina</button>
+        </div>
+      </div>
+    `;
+  }).join('') : '<div class="empty-state">Nessuna traccia GPX caricata.</div>';
+
+  el.tracksList.querySelectorAll('[data-track-delete]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const trackId = Number(button.getAttribute('data-track-delete') || 0);
+      if (!trackId) return;
+      if (!confirmDanger('Eliminare questa traccia GPX? Questa azione non si puo annullare.')) return;
+      try {
+        const payload = await apiFetch(`tracks/${trackId}`, { method: 'DELETE' });
+        state.currentDay = payload.day || state.currentDay;
+        renderDayEditor();
+        if (state.currentProject) await loadDays(state.currentProject.id);
+        showStatus('Traccia GPX eliminata.');
       } catch (error) {
         showStatus(error.message || String(error), true);
       }
@@ -767,6 +813,31 @@ el.mediaUploadForm.addEventListener('submit', async (event) => {
     await processDay(state.currentDay.id);
     await loadDay(state.currentDay.id);
     if (state.currentProject) await loadDays(state.currentProject.id);
+  } catch (error) {
+    showStatus(error.message || String(error), true);
+  }
+});
+
+el.trackUploadForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (!state.currentDay) return;
+  const files = el.trackFiles.files;
+  if (!files || !files.length) {
+    showStatus('Seleziona almeno un file GPX.', true);
+    return;
+  }
+  try {
+    const formData = new FormData();
+    Array.from(files).forEach((file) => formData.append('files[]', file));
+    const payload = await apiFetch(`days/${state.currentDay.id}/tracks`, {
+      method: 'POST',
+      body: formData
+    });
+    el.trackUploadForm.reset();
+    state.currentDay = payload.day || state.currentDay;
+    renderDayEditor();
+    if (state.currentProject) await loadDays(state.currentProject.id);
+    showStatus(`Importate ${Number(payload.uploaded_count || 0)} tracce GPX.`);
   } catch (error) {
     showStatus(error.message || String(error), true);
   }

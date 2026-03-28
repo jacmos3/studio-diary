@@ -238,6 +238,11 @@ textarea {
   align-items: start;
 }
 
+.resource-item--track {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
 .resource-item__content {
   display: grid;
   gap: 8px;
@@ -499,6 +504,10 @@ textarea {
   }
 
   .resource-item--media {
+    grid-template-columns: 1fr;
+  }
+
+  .resource-item--track {
     grid-template-columns: 1fr;
   }
 

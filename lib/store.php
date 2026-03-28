@@ -120,6 +120,12 @@ function studio_bootstrap_schema(PDO $pdo): void {
   studio_ensure_column($pdo, 'project_days', 'people_json', "TEXT NOT NULL DEFAULT '[]'");
   studio_ensure_column($pdo, 'projects', 'after_journey_title', "TEXT NOT NULL DEFAULT ''");
   studio_ensure_column($pdo, 'projects', 'after_journey_text', "TEXT NOT NULL DEFAULT ''");
+  studio_ensure_column($pdo, 'tracks', 'source_filename', "TEXT NOT NULL DEFAULT ''");
+  studio_ensure_column($pdo, 'tracks', 'storage_parsed_path', "TEXT NOT NULL DEFAULT ''");
+  studio_ensure_column($pdo, 'tracks', 'point_count', "INTEGER NOT NULL DEFAULT 0");
+  studio_ensure_column($pdo, 'tracks', 'distance_km', "REAL NOT NULL DEFAULT 0");
+  studio_ensure_column($pdo, 'tracks', 'metadata_json', "TEXT NOT NULL DEFAULT '{}'");
+  studio_ensure_column($pdo, 'tracks', 'updated_at', "TEXT NOT NULL DEFAULT ''");
   $booted = true;
 }
 
@@ -235,11 +241,13 @@ function studio_day_row(array $row, bool $withRelations = false): array {
     'status' => (string)$row['status'],
     'processing_state' => (string)$row['processing_state'],
     'media_count' => isset($row['media_count']) ? (int)$row['media_count'] : 0,
+    'tracks_count' => isset($row['tracks_count']) ? (int)$row['tracks_count'] : 0,
     'created_at' => (string)$row['created_at'],
     'updated_at' => (string)$row['updated_at'],
   ];
   if ($withRelations) {
     $day['media'] = studio_list_media((int)$row['id']);
+    $day['tracks'] = studio_list_tracks((int)$row['id']);
     $day['jobs'] = studio_list_jobs_for_day((int)$row['id']);
   }
   return $day;
@@ -279,6 +287,27 @@ function studio_media_row(array $row): array {
 
 function studio_media_public_url(int $mediaId, string $variant = 'original'): string {
   return '/media/?id=' . $mediaId . '&variant=' . rawurlencode($variant);
+}
+
+function studio_track_row(array $row): array {
+  $metadata = json_decode((string)($row['metadata_json'] ?? '{}'), true);
+  if (!is_array($metadata)) $metadata = [];
+  return [
+    'id' => (int)$row['id'],
+    'project_id' => (int)$row['project_id'],
+    'day_id' => (int)$row['day_id'],
+    'source_type' => (string)$row['source_type'],
+    'source_url' => (string)$row['source_url'],
+    'source_filename' => (string)($row['source_filename'] ?? basename((string)($row['storage_source_path'] ?? ''))),
+    'storage_source_path' => (string)$row['storage_source_path'],
+    'storage_parsed_path' => (string)($row['storage_parsed_path'] ?? ''),
+    'processing_state' => (string)$row['processing_state'],
+    'point_count' => (int)($row['point_count'] ?? 0),
+    'distance_km' => round((float)($row['distance_km'] ?? 0), 3),
+    'metadata' => $metadata,
+    'created_at' => (string)$row['created_at'],
+    'updated_at' => (string)($row['updated_at'] ?? ''),
+  ];
 }
 
 function studio_normalize_media_sort_order(int $dayId): void {
@@ -377,7 +406,10 @@ function studio_write_json_file(string $path, array $payload): void {
   if (!is_string($encoded)) {
     throw new RuntimeException('Impossibile serializzare il file JSON di export');
   }
-  file_put_contents($path, $encoded . "\n");
+  $bytes = @file_put_contents($path, $encoded . "\n");
+  if ($bytes === false) {
+    throw new RuntimeException('Impossibile scrivere il file JSON di export: ' . $path);
+  }
 }
 
 function studio_copy_export_asset(string $sourcePath, string $targetDir, string $baseUrl): array {
@@ -464,6 +496,70 @@ function studio_build_export_media_payload(array $project, array $media, string 
     'src' => $src['url'] ?? '',
     'thumb' => $thumb['url'] ?? ($src['url'] ?? ''),
     'poster' => null,
+  ];
+}
+
+function studio_collect_day_track_export(array $day): array {
+  $allPoints = [];
+  $totalDistanceKm = 0.0;
+  foreach (($day['tracks'] ?? []) as $track) {
+    $payload = studio_read_track_payload($track);
+    if (!$payload || !is_array($payload['points'] ?? null)) continue;
+    foreach ($payload['points'] as $point) {
+      if (!isset($point['lat'], $point['lon']) || !is_numeric($point['lat']) || !is_numeric($point['lon'])) continue;
+      $lat = (float)$point['lat'];
+      $lon = (float)$point['lon'];
+      $allPoints[] = [
+        'lat' => round($lat, 6),
+        'lon' => round($lon, 6),
+        'time' => (string)($point['time'] ?? ''),
+        'file' => (string)($point['file'] ?? ''),
+        'date' => (string)($point['date'] ?? (string)$day['date']),
+      ];
+    }
+    $totalDistanceKm += (float)($track['distance_km'] ?? 0);
+  }
+  usort($allPoints, static function (array $a, array $b): int {
+    return strcmp((string)($a['time'] ?? ''), (string)($b['time'] ?? ''));
+  });
+  return [
+    'date' => (string)$day['date'],
+    'points' => $allPoints,
+    'point_count' => count($allPoints),
+    'distance_km' => round($totalDistanceKm, 3),
+  ];
+}
+
+function studio_write_export_track_files(array $days, string $exportDir, string $exportBaseUrl): array {
+  $trackRoot = $exportDir . '/data/tracks';
+  $trackDayRoot = $trackRoot . '/day';
+  studio_ensure_dir($trackDayRoot);
+
+  $indexDays = [];
+  foreach ($days as $day) {
+    $payload = studio_collect_day_track_export($day);
+    if ((int)$payload['point_count'] <= 0) continue;
+    $dayKey = (string)$payload['date'];
+    studio_write_json_file($trackDayRoot . '/' . $dayKey . '.json', [
+      'date' => $dayKey,
+      'points' => $payload['points'],
+    ]);
+    $indexDays[] = [
+      'date' => $dayKey,
+      'points' => (int)$payload['point_count'],
+      'distance_km' => (float)$payload['distance_km'],
+    ];
+  }
+
+  $indexPayload = [
+    'generated_at' => studio_now(),
+    'days' => $indexDays,
+  ];
+  studio_write_json_file($trackRoot . '/index.json', $indexPayload);
+
+  return [
+    'index_url' => $exportBaseUrl . '/data/tracks/index.json',
+    'index_payload' => $indexPayload,
   ];
 }
 
@@ -567,6 +663,7 @@ function studio_build_export_package(int $projectId): array {
     'export_dir' => $exportDir,
     'export_base_url' => $exportBaseUrl,
   ]);
+  $tracksExport = studio_write_export_track_files($days, $exportDir, $exportBaseUrl);
   $projectPayload = [
     'generated_at' => $entriesPayload['generated_at'],
     'slug' => $project['slug'],
@@ -589,6 +686,7 @@ function studio_build_export_package(int $projectId): array {
     'files' => [
       'project' => $exportBaseUrl . '/project.json',
       'entries' => $exportBaseUrl . '/' . $entriesFileName,
+      'tracks_index' => $tracksExport['index_url'],
     ],
     'counts' => $entriesPayload['counts'] ?? ['images' => 0, 'videos' => 0],
   ];
@@ -738,7 +836,8 @@ function studio_list_days(int $projectId): array {
   $pdo = studio_db();
   $stmt = $pdo->prepare("
     SELECT d.*,
-      (SELECT COUNT(*) FROM media_items m WHERE m.day_id = d.id) AS media_count
+      (SELECT COUNT(*) FROM media_items m WHERE m.day_id = d.id) AS media_count,
+      (SELECT COUNT(*) FROM tracks t WHERE t.day_id = d.id) AS tracks_count
     FROM project_days d
     WHERE d.project_id = :project_id
     ORDER BY d.date ASC, d.id ASC
@@ -791,7 +890,8 @@ function studio_get_day(int $dayId, bool $withRelations = false): ?array {
   $pdo = studio_db();
   $stmt = $pdo->prepare("
     SELECT d.*,
-      (SELECT COUNT(*) FROM media_items m WHERE m.day_id = d.id) AS media_count
+      (SELECT COUNT(*) FROM media_items m WHERE m.day_id = d.id) AS media_count,
+      (SELECT COUNT(*) FROM tracks t WHERE t.day_id = d.id) AS tracks_count
     FROM project_days d
     WHERE d.id = :id
     LIMIT 1
@@ -893,6 +993,250 @@ function studio_list_media(int $dayId): array {
   ");
   $stmt->execute([':day_id' => $dayId]);
   return array_map('studio_media_row', $stmt->fetchAll());
+}
+
+function studio_list_tracks(int $dayId): array {
+  $pdo = studio_db();
+  $stmt = $pdo->prepare("
+    SELECT *
+    FROM tracks
+    WHERE day_id = :day_id
+    ORDER BY id ASC
+  ");
+  $stmt->execute([':day_id' => $dayId]);
+  return array_map('studio_track_row', $stmt->fetchAll());
+}
+
+function studio_get_track(int $trackId): ?array {
+  $pdo = studio_db();
+  $stmt = $pdo->prepare("
+    SELECT *
+    FROM tracks
+    WHERE id = :id
+    LIMIT 1
+  ");
+  $stmt->execute([':id' => $trackId]);
+  $row = $stmt->fetch();
+  return $row ? studio_track_row($row) : null;
+}
+
+function studio_track_distance_meters(array $a, array $b): float {
+  $lat1 = deg2rad((float)$a['lat']);
+  $lon1 = deg2rad((float)$a['lon']);
+  $lat2 = deg2rad((float)$b['lat']);
+  $lon2 = deg2rad((float)$b['lon']);
+  $dLat = $lat2 - $lat1;
+  $dLon = $lon2 - $lon1;
+  $h = sin($dLat / 2) ** 2 + cos($lat1) * cos($lat2) * sin($dLon / 2) ** 2;
+  return 2 * 6371000 * asin(min(1, sqrt($h)));
+}
+
+function studio_track_file_key(string $sourceFilename): string {
+  $base = strtoupper(pathinfo($sourceFilename, PATHINFO_FILENAME));
+  $base = preg_replace('/[^A-Z0-9]+/', '_', $base) ?? '';
+  $base = trim($base, '_');
+  if ($base === '') $base = 'TRACK';
+  return 'RUNTASTIC_IMPORTED_' . $base . '_' . strtoupper(bin2hex(random_bytes(3)));
+}
+
+function studio_parse_gpx_track(string $filePath, string $dayDate, string $trackFileKey): array {
+  if (!is_file($filePath)) {
+    throw new RuntimeException('File GPX non trovato');
+  }
+
+  $previousState = libxml_use_internal_errors(true);
+  $document = new DOMDocument();
+  $loaded = $document->load($filePath);
+  $errors = libxml_get_errors();
+  libxml_clear_errors();
+  libxml_use_internal_errors($previousState);
+  if (!$loaded) {
+    $message = $errors ? trim((string)$errors[0]->message) : 'XML non valido';
+    throw new RuntimeException('GPX non valido: ' . $message);
+  }
+
+  $xpath = new DOMXPath($document);
+  $trackpoints = $xpath->query('//*[local-name()="trkpt"]');
+  if (!$trackpoints instanceof DOMNodeList || $trackpoints->length === 0) {
+    throw new RuntimeException('Il file GPX non contiene punti tracciati');
+  }
+
+  $points = [];
+  $distanceMeters = 0.0;
+  $fallbackTs = strtotime($dayDate . 'T00:00:00Z');
+  if ($fallbackTs === false) $fallbackTs = time();
+  $previousPoint = null;
+
+  foreach ($trackpoints as $index => $node) {
+    if (!$node instanceof DOMElement) continue;
+    $lat = (float)$node->getAttribute('lat');
+    $lon = (float)$node->getAttribute('lon');
+    if (!is_finite($lat) || !is_finite($lon)) continue;
+
+    $timeNode = $xpath->query('./*[local-name()="time"]', $node);
+    $timeRaw = ($timeNode instanceof DOMNodeList && $timeNode->length > 0)
+      ? trim((string)$timeNode->item(0)?->textContent)
+      : '';
+    $timestamp = $timeRaw !== '' ? strtotime($timeRaw) : false;
+    if ($timestamp === false) {
+      $timestamp = $fallbackTs + (int)$index;
+      $timeRaw = gmdate('Y-m-d\TH:i:s\Z', $timestamp);
+    } else {
+      $timeRaw = gmdate('Y-m-d\TH:i:s\Z', $timestamp);
+    }
+
+    $point = [
+      'lat' => round($lat, 6),
+      'lon' => round($lon, 6),
+      'time' => $timeRaw,
+      'file' => $trackFileKey,
+      'date' => $dayDate,
+    ];
+    if ($previousPoint !== null) {
+      $distanceMeters += studio_track_distance_meters($previousPoint, $point);
+    }
+    $previousPoint = $point;
+    $points[] = $point;
+  }
+
+  if (!$points) {
+    throw new RuntimeException('Il file GPX non contiene coordinate valide');
+  }
+
+  return [
+    'date' => $dayDate,
+    'points' => $points,
+    'point_count' => count($points),
+    'distance_km' => round($distanceMeters / 1000, 3),
+    'started_at' => (string)$points[0]['time'],
+    'ended_at' => (string)$points[count($points) - 1]['time'],
+  ];
+}
+
+function studio_read_track_payload(array $track): ?array {
+  $path = trim((string)($track['storage_parsed_path'] ?? ''));
+  if ($path === '' || !is_file($path)) return null;
+  $raw = file_get_contents($path);
+  if ($raw === false || trim($raw) === '') return null;
+  $decoded = json_decode($raw, true);
+  return is_array($decoded) ? $decoded : null;
+}
+
+function studio_store_uploaded_tracks(int $dayId, array $files): array {
+  $pdo = studio_db();
+  $day = studio_get_day($dayId, false);
+  if (!$day) throw new RuntimeException('Day not found');
+  $project = studio_get_project((int)$day['project_id']);
+  if (!$project) throw new RuntimeException('Project not found');
+  $items = studio_uploaded_files($files);
+  if (!$items) throw new RuntimeException('Nessun file valido ricevuto');
+
+  $uploadDir = studio_storage_root() . '/uploads/project-' . (int)$project['id'] . '/day-' . $dayId . '/tracks';
+  $processedDir = studio_storage_root() . '/processed/project-' . (int)$project['id'] . '/day-' . $dayId . '/tracks';
+  studio_ensure_dir($uploadDir);
+  studio_ensure_dir($processedDir);
+
+  foreach ($items as $file) {
+    $extension = strtolower(pathinfo((string)$file['name'], PATHINFO_EXTENSION));
+    if ($extension !== 'gpx') {
+      throw new RuntimeException('Sono supportati solo file GPX');
+    }
+  }
+
+  $insert = $pdo->prepare("
+    INSERT INTO tracks (
+      project_id, day_id, source_type, source_url, source_filename, storage_source_path, storage_parsed_path,
+      processing_state, point_count, distance_km, metadata_json, created_at, updated_at
+    ) VALUES (
+      :project_id, :day_id, :source_type, :source_url, :source_filename, :storage_source_path, :storage_parsed_path,
+      'ready', :point_count, :distance_km, :metadata_json, :created_at, :updated_at
+    )
+  ");
+
+  $uploadedCount = 0;
+  $createdPaths = [];
+  $pdo->beginTransaction();
+  try {
+    foreach ($items as $file) {
+      $originalName = (string)$file['name'];
+      $safeName = studio_safe_filename($originalName);
+      $storedBase = gmdate('YmdHis') . '-' . bin2hex(random_bytes(4)) . '-' . $safeName;
+      $sourcePath = $uploadDir . '/' . $storedBase;
+      if (!move_uploaded_file((string)$file['tmp_name'], $sourcePath)) {
+        throw new RuntimeException('Impossibile salvare il file GPX caricato');
+      }
+      $createdPaths[] = $sourcePath;
+
+      $trackFileKey = studio_track_file_key($originalName);
+      $parsed = studio_parse_gpx_track($sourcePath, (string)$day['date'], $trackFileKey);
+      $parsedPath = $processedDir . '/' . pathinfo($storedBase, PATHINFO_FILENAME) . '.json';
+      file_put_contents(
+        $parsedPath,
+        json_encode(
+          ['date' => $parsed['date'], 'points' => $parsed['points']],
+          JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+        )
+      );
+      $createdPaths[] = $parsedPath;
+      $metadata = [
+        'track_key' => $trackFileKey,
+        'started_at' => $parsed['started_at'],
+        'ended_at' => $parsed['ended_at'],
+      ];
+      $now = studio_now();
+      $insert->execute([
+        ':project_id' => (int)$project['id'],
+        ':day_id' => $dayId,
+        ':source_type' => 'gpx_upload',
+        ':source_url' => '',
+        ':source_filename' => $originalName,
+        ':storage_source_path' => $sourcePath,
+        ':storage_parsed_path' => $parsedPath,
+        ':point_count' => (int)$parsed['point_count'],
+        ':distance_km' => (float)$parsed['distance_km'],
+        ':metadata_json' => json_encode($metadata, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        ':created_at' => $now,
+        ':updated_at' => $now,
+      ]);
+      $uploadedCount += 1;
+    }
+
+    $pdo->prepare("UPDATE project_days SET updated_at = :updated_at WHERE id = :id")
+      ->execute([':updated_at' => studio_now(), ':id' => $dayId]);
+    $pdo->commit();
+  } catch (Throwable $error) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    foreach ($createdPaths as $path) {
+      studio_remove_path($path);
+    }
+    throw $error;
+  }
+
+  return [
+    'ok' => true,
+    'uploaded_count' => $uploadedCount,
+    'day' => studio_get_day($dayId, true),
+  ];
+}
+
+function studio_delete_track(int $trackId): array {
+  $pdo = studio_db();
+  $track = studio_get_track($trackId);
+  if (!$track) throw new RuntimeException('Track not found');
+  $dayId = (int)$track['day_id'];
+
+  $stmt = $pdo->prepare("DELETE FROM tracks WHERE id = :id");
+  $stmt->execute([':id' => $trackId]);
+
+  $paths = array_unique(array_filter([
+    trim((string)($track['storage_source_path'] ?? '')),
+    trim((string)($track['storage_parsed_path'] ?? '')),
+  ]));
+  foreach ($paths as $path) {
+    studio_remove_path($path);
+  }
+
+  return studio_get_day($dayId, true) ?? throw new RuntimeException('Day not found');
 }
 
 function studio_delete_media(int $mediaId): array {

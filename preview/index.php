@@ -328,6 +328,14 @@ function h(string $value): string {
         url.hash = '#hero';
         return `${url.pathname}${url.search}${url.hash}`;
       }
+      if (kind === 'track-index') {
+        return `/exported/${encodeURIComponent(projectSlug)}/data/tracks/index.json`;
+      }
+      if (kind === 'track-day') {
+        const dayKey = params && params.day ? String(params.day || '').trim().slice(0, 10) : '';
+        if (!dayKey) return '';
+        return `/exported/${encodeURIComponent(projectSlug)}/data/tracks/day/${encodeURIComponent(dayKey)}.json`;
+      }
       if (kind === 'contact' || kind === 'offer' || kind === 'builder') {
         return '/';
       }
