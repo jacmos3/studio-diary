@@ -7,6 +7,12 @@ declare(strict_types=1);
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Diary Studio</title>
   <link rel="stylesheet" href="./assets/studio.css" />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
 </head>
 <body>
   <div class="studio-shell">
@@ -224,6 +230,14 @@ declare(strict_types=1);
                 <div id="media-list" class="resource-list top-gap"></div>
               </div>
               <div class="stack">
+                <div class="track-preview-card">
+                  <div class="card-head">
+                    <h4>Anteprima tracce</h4>
+                    <div id="track-preview-meta" class="muted small"></div>
+                  </div>
+                  <div id="track-preview-state" class="empty-state track-preview-state">Carica almeno una traccia GPX per vedere il percorso qui dentro.</div>
+                  <div id="track-preview-map" class="track-preview-map hidden" aria-label="Anteprima mappa tracce"></div>
+                </div>
                 <div>
                   <h4>Tracce GPX</h4>
                   <form id="track-upload-form" class="stack">
@@ -244,6 +258,11 @@ declare(strict_types=1);
     </main>
   </div>
 
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
   <script src="./assets/studio.js" defer></script>
 </body>
 </html>

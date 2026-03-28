@@ -243,6 +243,34 @@ textarea {
   align-items: start;
 }
 
+.track-preview-card {
+  border: 1px solid rgba(31, 26, 22, 0.08);
+  border-radius: 14px;
+  background: #fffdf9;
+  padding: 14px;
+}
+
+.track-preview-state {
+  margin-top: 10px;
+}
+
+.track-preview-map {
+  margin-top: 10px;
+  height: 260px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(31, 26, 22, 0.1);
+  background: linear-gradient(180deg, #edf3f0 0%, #f7faf8 100%);
+}
+
+.track-preview-map .leaflet-control-attribution {
+  font-size: 0.65rem;
+}
+
+.track-preview-map .leaflet-container {
+  background: #edf3f0;
+}
+
 .resource-item__content {
   display: grid;
   gap: 8px;

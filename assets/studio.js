@@ -67,11 +67,19 @@ const el = {
   mediaUploadForm: document.getElementById('media-upload-form'),
   mediaFiles: document.getElementById('media-files'),
   mediaList: document.getElementById('media-list'),
+  trackPreviewMeta: document.getElementById('track-preview-meta'),
+  trackPreviewState: document.getElementById('track-preview-state'),
+  trackPreviewMap: document.getElementById('track-preview-map'),
   trackUploadForm: document.getElementById('track-upload-form'),
   trackFiles: document.getElementById('track-files'),
   tracksList: document.getElementById('tracks-list'),
   jobsList: document.getElementById('jobs-list')
 };
+
+let trackPreviewLeafletMap = null;
+let trackPreviewLayerGroup = null;
+
+const TRACK_PREVIEW_COLORS = ['#1f5f5b', '#b06c36', '#9f1b1b', '#5b5fa8'];
 
 const showStatus = (message, isError = false) => {
   if (!message) {
@@ -99,6 +107,111 @@ const escapeRegExp = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/
 const formatDistanceKm = (value) => {
   const num = Number(value);
   return Number.isFinite(num) && num > 0 ? `${num.toFixed(2)} km` : '0.00 km';
+};
+
+const normalizeTrackLatLngs = (points) => (Array.isArray(points) ? points : [])
+  .map((point) => [Number(point && point.lat), Number(point && point.lon)])
+  .filter(([lat, lon]) => Number.isFinite(lat) && Number.isFinite(lon));
+
+const clearTrackPreview = (message = 'Carica almeno una traccia GPX per vedere il percorso qui dentro.') => {
+  if (trackPreviewLayerGroup) trackPreviewLayerGroup.clearLayers();
+  if (el.trackPreviewMeta) el.trackPreviewMeta.textContent = '';
+  if (el.trackPreviewMap) el.trackPreviewMap.classList.add('hidden');
+  if (el.trackPreviewState) {
+    el.trackPreviewState.textContent = message;
+    el.trackPreviewState.classList.remove('hidden');
+  }
+};
+
+const ensureTrackPreviewMap = () => {
+  if (!el.trackPreviewMap || !window.L) return null;
+  if (!trackPreviewLeafletMap) {
+    trackPreviewLeafletMap = window.L.map(el.trackPreviewMap, {
+      zoomControl: false,
+      attributionControl: true,
+      scrollWheelZoom: false,
+      dragging: true,
+      doubleClickZoom: false,
+      boxZoom: false,
+      keyboard: false,
+    });
+    window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(trackPreviewLeafletMap);
+    trackPreviewLayerGroup = window.L.layerGroup().addTo(trackPreviewLeafletMap);
+  }
+  return trackPreviewLeafletMap;
+};
+
+const renderTrackPreview = () => {
+  const day = state.currentDay;
+  if (!day) {
+    clearTrackPreview('Nessun giorno selezionato.');
+    return;
+  }
+  const tracks = (Array.isArray(day.tracks) ? day.tracks : []).map((track) => ({
+    ...track,
+    latlngs: normalizeTrackLatLngs(track.points)
+  })).filter((track) => track.latlngs.length > 0);
+  if (!tracks.length) {
+    clearTrackPreview('Carica almeno una traccia GPX per vedere il percorso qui dentro.');
+    return;
+  }
+  if (!window.L) {
+    clearTrackPreview('Leaflet non disponibile: impossibile mostrare la mini mappa.');
+    return;
+  }
+
+  const map = ensureTrackPreviewMap();
+  if (!map || !trackPreviewLayerGroup) {
+    clearTrackPreview('Impossibile inizializzare la mini mappa.');
+    return;
+  }
+
+  trackPreviewLayerGroup.clearLayers();
+  const bounds = [];
+  let totalPoints = 0;
+  let totalDistanceKm = 0;
+
+  tracks.forEach((track, index) => {
+    const color = TRACK_PREVIEW_COLORS[index % TRACK_PREVIEW_COLORS.length];
+    totalPoints += track.latlngs.length;
+    totalDistanceKm += Number(track.distance_km || 0);
+    const polyline = window.L.polyline(track.latlngs, {
+      color,
+      weight: 4,
+      opacity: 0.92
+    });
+    polyline.addTo(trackPreviewLayerGroup);
+    track.latlngs.forEach((point) => bounds.push(point));
+    const start = track.latlngs[0];
+    const end = track.latlngs[track.latlngs.length - 1];
+    window.L.circleMarker(start, {
+      radius: 5,
+      color,
+      weight: 2,
+      fillColor: '#ffffff',
+      fillOpacity: 1
+    }).addTo(trackPreviewLayerGroup);
+    window.L.circleMarker(end, {
+      radius: 6,
+      color,
+      weight: 2,
+      fillColor: color,
+      fillOpacity: 0.95
+    }).addTo(trackPreviewLayerGroup);
+  });
+
+  el.trackPreviewState.classList.add('hidden');
+  el.trackPreviewMap.classList.remove('hidden');
+  el.trackPreviewMeta.textContent = `${tracks.length} tracce · ${totalPoints} punti · ${formatDistanceKm(totalDistanceKm)}`;
+
+  const fittedBounds = window.L.latLngBounds(bounds);
+  map.fitBounds(fittedBounds.pad(0.12), { animate: false });
+  window.requestAnimationFrame(() => {
+    map.invalidateSize(false);
+  });
 };
 
 const normalizePersonName = (value) => String(value || '').trim().replace(/\s+/g, ' ');
@@ -417,6 +530,7 @@ const renderDayEditor = () => {
     el.jobsList.innerHTML = '<div class="empty-state">Nessun job.</div>';
     state.dayPeople = [];
     state.detectedPeopleSuggestions = [];
+    renderTrackPreview();
     renderPeopleEditor();
     return;
   }
@@ -535,6 +649,7 @@ const renderDayEditor = () => {
       ${job.error_text ? `<div class="resource-item__meta resource-item__meta--error">${escapeHtml(job.error_text)}</div>` : ''}
     </div>
   `).join('') : '<div class="empty-state">Nessun job in coda.</div>';
+  renderTrackPreview();
   renderPeopleEditor();
 };
 

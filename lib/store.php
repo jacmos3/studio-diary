@@ -247,7 +247,7 @@ function studio_day_row(array $row, bool $withRelations = false): array {
   ];
   if ($withRelations) {
     $day['media'] = studio_list_media((int)$row['id']);
-    $day['tracks'] = studio_list_tracks((int)$row['id']);
+    $day['tracks'] = studio_list_tracks((int)$row['id'], true);
     $day['jobs'] = studio_list_jobs_for_day((int)$row['id']);
   }
   return $day;
@@ -289,9 +289,16 @@ function studio_media_public_url(int $mediaId, string $variant = 'original'): st
   return '/media/?id=' . $mediaId . '&variant=' . rawurlencode($variant);
 }
 
-function studio_track_row(array $row): array {
+function studio_track_row(array $row, bool $includePoints = false): array {
   $metadata = json_decode((string)($row['metadata_json'] ?? '{}'), true);
   if (!is_array($metadata)) $metadata = [];
+  $points = [];
+  if ($includePoints) {
+    $payload = studio_read_track_payload([
+      'storage_parsed_path' => (string)($row['storage_parsed_path'] ?? ''),
+    ]);
+    $points = is_array($payload['points'] ?? null) ? array_values($payload['points']) : [];
+  }
   return [
     'id' => (int)$row['id'],
     'project_id' => (int)$row['project_id'],
@@ -305,6 +312,7 @@ function studio_track_row(array $row): array {
     'point_count' => (int)($row['point_count'] ?? 0),
     'distance_km' => round((float)($row['distance_km'] ?? 0), 3),
     'metadata' => $metadata,
+    'points' => $points,
     'created_at' => (string)$row['created_at'],
     'updated_at' => (string)($row['updated_at'] ?? ''),
   ];
@@ -995,7 +1003,7 @@ function studio_list_media(int $dayId): array {
   return array_map('studio_media_row', $stmt->fetchAll());
 }
 
-function studio_list_tracks(int $dayId): array {
+function studio_list_tracks(int $dayId, bool $includePoints = false): array {
   $pdo = studio_db();
   $stmt = $pdo->prepare("
     SELECT *
@@ -1004,10 +1012,10 @@ function studio_list_tracks(int $dayId): array {
     ORDER BY id ASC
   ");
   $stmt->execute([':day_id' => $dayId]);
-  return array_map('studio_track_row', $stmt->fetchAll());
+  return array_map(static fn(array $row): array => studio_track_row($row, $includePoints), $stmt->fetchAll());
 }
 
-function studio_get_track(int $trackId): ?array {
+function studio_get_track(int $trackId, bool $includePoints = false): ?array {
   $pdo = studio_db();
   $stmt = $pdo->prepare("
     SELECT *
@@ -1017,7 +1025,7 @@ function studio_get_track(int $trackId): ?array {
   ");
   $stmt->execute([':id' => $trackId]);
   $row = $stmt->fetch();
-  return $row ? studio_track_row($row) : null;
+  return $row ? studio_track_row($row, $includePoints) : null;
 }
 
 function studio_track_distance_meters(array $a, array $b): float {
@@ -1221,7 +1229,7 @@ function studio_store_uploaded_tracks(int $dayId, array $files): array {
 
 function studio_delete_track(int $trackId): array {
   $pdo = studio_db();
-  $track = studio_get_track($trackId);
+  $track = studio_get_track($trackId, false);
   if (!$track) throw new RuntimeException('Track not found');
   $dayId = (int)$track['day_id'];
 
