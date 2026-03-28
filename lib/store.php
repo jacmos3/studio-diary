@@ -28,6 +28,8 @@ function studio_bootstrap_schema(PDO $pdo): void {
       primary_lang TEXT NOT NULL DEFAULT 'it',
       public_base_path TEXT NOT NULL DEFAULT '',
       intro_text TEXT NOT NULL DEFAULT '',
+      after_journey_title TEXT NOT NULL DEFAULT '',
+      after_journey_text TEXT NOT NULL DEFAULT '',
       theme_json TEXT NOT NULL DEFAULT '{}',
       status TEXT NOT NULL DEFAULT 'draft',
       created_at TEXT NOT NULL,
@@ -116,6 +118,8 @@ function studio_bootstrap_schema(PDO $pdo): void {
   studio_ensure_column($pdo, 'media_items', 'duration_sec', "REAL DEFAULT NULL");
   studio_ensure_column($pdo, 'media_items', 'error_text', "TEXT NOT NULL DEFAULT ''");
   studio_ensure_column($pdo, 'project_days', 'people_json', "TEXT NOT NULL DEFAULT '[]'");
+  studio_ensure_column($pdo, 'projects', 'after_journey_title', "TEXT NOT NULL DEFAULT ''");
+  studio_ensure_column($pdo, 'projects', 'after_journey_text', "TEXT NOT NULL DEFAULT ''");
   $booted = true;
 }
 
@@ -177,6 +181,8 @@ function studio_project_row(array $row): array {
     'primary_lang' => (string)$row['primary_lang'],
     'public_base_path' => (string)$row['public_base_path'],
     'intro_text' => (string)$row['intro_text'],
+    'after_journey_title' => (string)($row['after_journey_title'] ?? ''),
+    'after_journey_text' => (string)($row['after_journey_text'] ?? ''),
     'status' => (string)$row['status'],
     'preview_url' => $previewUrl,
     'published_url' => $publishedUrl,
@@ -275,6 +281,33 @@ function studio_media_public_url(int $mediaId, string $variant = 'original'): st
   return '/media/?id=' . $mediaId . '&variant=' . rawurlencode($variant);
 }
 
+function studio_normalize_media_sort_order(int $dayId): void {
+  $pdo = studio_db();
+  $stmt = $pdo->prepare("
+    SELECT id
+    FROM media_items
+    WHERE day_id = :day_id
+    ORDER BY sort_order ASC, id ASC
+  ");
+  $stmt->execute([':day_id' => $dayId]);
+  $ids = array_map(static fn(array $row): int => (int)$row['id'], $stmt->fetchAll());
+  if (!$ids) return;
+  $update = $pdo->prepare("
+    UPDATE media_items
+    SET sort_order = :sort_order,
+        updated_at = :updated_at
+    WHERE id = :id
+  ");
+  $now = studio_now();
+  foreach ($ids as $index => $mediaId) {
+    $update->execute([
+      ':sort_order' => $index + 1,
+      ':updated_at' => $now,
+      ':id' => $mediaId,
+    ]);
+  }
+}
+
 function studio_export_root(): string {
   $path = STUDIO_ROOT . '/exported';
   if (!is_dir($path)) mkdir($path, 0775, true);
@@ -319,6 +352,22 @@ function studio_clear_directory(string $path): void {
     }
     @unlink($target);
   }
+}
+
+function studio_remove_path(string $path): void {
+  if ($path === '' || !file_exists($path)) return;
+  if (is_dir($path) && !is_link($path)) {
+    $items = scandir($path);
+    if (is_array($items)) {
+      foreach ($items as $item) {
+        if ($item === '.' || $item === '..') continue;
+        studio_remove_path($path . '/' . $item);
+      }
+    }
+    @rmdir($path);
+    return;
+  }
+  @unlink($path);
 }
 
 function studio_write_json_file(string $path, array $payload): void {
@@ -491,6 +540,8 @@ function studio_build_entries_payload(array $project, array $days, ?array $expor
       'primary_lang' => $project['primary_lang'],
       'public_base_path' => $project['public_base_path'],
       'intro_text' => $project['intro_text'],
+      'after_journey_title' => $project['after_journey_title'],
+      'after_journey_text' => $project['after_journey_text'],
     ]
   ];
 }
@@ -525,6 +576,8 @@ function studio_build_export_package(int $projectId): array {
     'primary_lang' => $project['primary_lang'],
     'public_base_path' => $project['public_base_path'],
     'intro_text' => $project['intro_text'],
+    'after_journey_title' => $project['after_journey_title'],
+    'after_journey_text' => $project['after_journey_text'],
   ];
   $manifest = [
     'generated_at' => $entriesPayload['generated_at'],
@@ -610,9 +663,9 @@ function studio_create_project(array $payload): array {
   $now = studio_now();
   $stmt = $pdo->prepare("
     INSERT INTO projects (
-      slug, title, subtitle, author_name, primary_lang, public_base_path, intro_text, theme_json, status, created_at, updated_at
+      slug, title, subtitle, author_name, primary_lang, public_base_path, intro_text, after_journey_title, after_journey_text, theme_json, status, created_at, updated_at
     ) VALUES (
-      :slug, :title, '', '', 'it', :public_base_path, '', '{}', 'draft', :created_at, :updated_at
+      :slug, :title, '', '', 'it', :public_base_path, '', '', '', '{}', 'draft', :created_at, :updated_at
     )
   ");
   $stmt->execute([
@@ -638,6 +691,8 @@ function studio_update_project(int $projectId, array $payload): array {
   $primaryLang = studio_validate_lang((string)($payload['primary_lang'] ?? $project['primary_lang']));
   $publicBasePath = studio_project_base_path($slug, (string)($payload['public_base_path'] ?? $project['public_base_path']));
   $introText = studio_clean_multiline($payload['intro_text'] ?? $project['intro_text']);
+  $afterJourneyTitle = studio_clean_text($payload['after_journey_title'] ?? $project['after_journey_title']);
+  $afterJourneyText = studio_clean_multiline($payload['after_journey_text'] ?? $project['after_journey_text']);
   $stmt = $pdo->prepare("
     UPDATE projects
     SET slug = :slug,
@@ -647,6 +702,8 @@ function studio_update_project(int $projectId, array $payload): array {
         primary_lang = :primary_lang,
         public_base_path = :public_base_path,
         intro_text = :intro_text,
+        after_journey_title = :after_journey_title,
+        after_journey_text = :after_journey_text,
         updated_at = :updated_at
     WHERE id = :id
   ");
@@ -658,10 +715,23 @@ function studio_update_project(int $projectId, array $payload): array {
     ':primary_lang' => $primaryLang,
     ':public_base_path' => $publicBasePath,
     ':intro_text' => $introText,
+    ':after_journey_title' => $afterJourneyTitle,
+    ':after_journey_text' => $afterJourneyText,
     ':updated_at' => studio_now(),
     ':id' => $projectId,
   ]);
   return studio_get_project($projectId) ?? throw new RuntimeException('Project not found');
+}
+
+function studio_delete_project(int $projectId): void {
+  $pdo = studio_db();
+  $project = studio_get_project($projectId);
+  if (!$project) throw new RuntimeException('Project not found');
+  $stmt = $pdo->prepare("DELETE FROM projects WHERE id = :id");
+  $stmt->execute([':id' => $projectId]);
+  studio_remove_path(studio_storage_root() . '/uploads/project-' . $projectId);
+  studio_remove_path(studio_storage_root() . '/processed/project-' . $projectId);
+  studio_remove_path(studio_export_project_dir($project));
 }
 
 function studio_list_days(int $projectId): array {
@@ -802,6 +872,18 @@ function studio_update_day(int $dayId, array $payload): array {
   return studio_get_day($dayId, true) ?? throw new RuntimeException('Day not found');
 }
 
+function studio_delete_day(int $dayId): int {
+  $pdo = studio_db();
+  $day = studio_get_day($dayId, true);
+  if (!$day) throw new RuntimeException('Day not found');
+  $projectId = (int)$day['project_id'];
+  $stmt = $pdo->prepare("DELETE FROM project_days WHERE id = :id");
+  $stmt->execute([':id' => $dayId]);
+  studio_remove_path(studio_storage_root() . '/uploads/project-' . $projectId . '/day-' . $dayId);
+  studio_remove_path(studio_storage_root() . '/processed/project-' . $projectId . '/day-' . $dayId);
+  return $projectId;
+}
+
 function studio_list_media(int $dayId): array {
   $pdo = studio_db();
   $stmt = $pdo->prepare("
@@ -811,6 +893,82 @@ function studio_list_media(int $dayId): array {
   ");
   $stmt->execute([':day_id' => $dayId]);
   return array_map('studio_media_row', $stmt->fetchAll());
+}
+
+function studio_delete_media(int $mediaId): array {
+  $pdo = studio_db();
+  $media = studio_get_media($mediaId);
+  if (!$media) throw new RuntimeException('Media not found');
+  $dayId = (int)$media['day_id'];
+
+  $pdo->beginTransaction();
+  try {
+    $stmt = $pdo->prepare("DELETE FROM media_items WHERE id = :id");
+    $stmt->execute([':id' => $mediaId]);
+    studio_normalize_media_sort_order($dayId);
+    $pdo->commit();
+  } catch (Throwable $error) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    throw $error;
+  }
+
+  $paths = array_unique(array_filter([
+    trim((string)($media['storage_original_path'] ?? '')),
+    trim((string)($media['storage_render_path'] ?? '')),
+    trim((string)($media['storage_thumb_path'] ?? '')),
+    trim((string)($media['storage_poster_path'] ?? '')),
+  ]));
+  foreach ($paths as $path) {
+    studio_remove_path($path);
+  }
+
+  return studio_get_day($dayId, true) ?? throw new RuntimeException('Day not found');
+}
+
+function studio_reorder_day_media(int $dayId, array $mediaIds): array {
+  $pdo = studio_db();
+  $day = studio_get_day($dayId, false);
+  if (!$day) throw new RuntimeException('Day not found');
+
+  $currentIds = array_map(static fn(array $item): int => (int)$item['id'], studio_list_media($dayId));
+  if (!$currentIds) {
+    return studio_get_day($dayId, true) ?? throw new RuntimeException('Day not found');
+  }
+
+  $requestedIds = array_values(array_map('intval', $mediaIds));
+  $sortedCurrent = $currentIds;
+  $sortedRequested = $requestedIds;
+  sort($sortedCurrent);
+  sort($sortedRequested);
+  if ($sortedRequested !== $sortedCurrent) {
+    throw new RuntimeException('Ordine media non valido');
+  }
+
+  $update = $pdo->prepare("
+    UPDATE media_items
+    SET sort_order = :sort_order,
+        updated_at = :updated_at
+    WHERE id = :id AND day_id = :day_id
+  ");
+  $now = studio_now();
+
+  $pdo->beginTransaction();
+  try {
+    foreach ($requestedIds as $index => $mediaId) {
+      $update->execute([
+        ':sort_order' => $index + 1,
+        ':updated_at' => $now,
+        ':id' => $mediaId,
+        ':day_id' => $dayId,
+      ]);
+    }
+    $pdo->commit();
+  } catch (Throwable $error) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    throw $error;
+  }
+
+  return studio_get_day($dayId, true) ?? throw new RuntimeException('Day not found');
 }
 
 function studio_list_jobs_for_day(int $dayId): array {

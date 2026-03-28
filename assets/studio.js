@@ -24,6 +24,7 @@ const el = {
   projectMeta: document.getElementById('project-meta'),
   projectPreviewBtn: document.getElementById('project-preview-btn'),
   projectPublishBtn: document.getElementById('project-publish-btn'),
+  projectDeleteBtn: document.getElementById('project-delete-btn'),
   projectPreviewLink: document.getElementById('project-preview-link'),
   projectPublishedLink: document.getElementById('project-published-link'),
   projectForm: document.getElementById('project-form'),
@@ -34,12 +35,15 @@ const el = {
   projectPrimaryLang: document.getElementById('project-primary-lang'),
   projectPublicBasePath: document.getElementById('project-public-base-path'),
   projectIntroText: document.getElementById('project-intro-text'),
+  projectAfterJourneyTitle: document.getElementById('project-after-journey-title'),
+  projectAfterJourneyText: document.getElementById('project-after-journey-text'),
   daysPanel: document.getElementById('days-panel'),
   daysList: document.getElementById('days-list'),
   dayCreateForm: document.getElementById('day-create-form'),
   dayCreateDate: document.getElementById('day-create-date'),
   dayEditorTitle: document.getElementById('day-editor-title'),
   dayEditorMeta: document.getElementById('day-editor-meta'),
+  dayDeleteBtn: document.getElementById('day-delete-btn'),
   dayForm: document.getElementById('day-form'),
   dayDate: document.getElementById('day-date'),
   dayNumber: document.getElementById('day-number'),
@@ -135,9 +139,7 @@ const PERSON_SUGGESTION_STOPWORDS = new Set([
   'Da', 'Di', 'A', 'In', 'Su', 'Per', 'Con', 'Tra', 'Fra',
   'E', 'Ma', 'Poi', 'Oggi', 'Ieri', 'Domani', 'Qui', 'Questa', 'Questo',
   'Dove', 'Scena', 'Dettaglio', 'Nota', 'Una', 'Summary', 'Link', 'Strava',
-  'Cammino', 'Camino', 'Chemin', 'Giorno', 'Day', 'Days', 'Preview', 'Studio',
-  'Lourdes', 'Santiago', 'Finisterre', 'Muxia', 'Muxía', 'Pamplona', 'Bergamo',
-  'Milano', 'Perugia', 'Italia', 'Spagna', 'Francia', 'Belgio'
+  'Cammino', 'Camino', 'Chemin', 'Giorno', 'Day', 'Days', 'Preview', 'Studio'
 ].map((value) => value.toLocaleLowerCase('it-IT')));
 
 const extractPeopleCandidatesFromText = (text) => {
@@ -278,6 +280,28 @@ const apiJson = (path, method = 'GET', body = null) => {
 };
 
 const processDay = async (dayId) => apiJson(`days/${dayId}/process`, 'POST', {});
+const confirmDanger = (message) => window.confirm(message);
+
+const reorderCurrentMedia = async (mediaIds) => {
+  if (!state.currentDay) return null;
+  const payload = await apiJson(`days/${state.currentDay.id}/media/order`, 'PATCH', { media_ids: mediaIds });
+  state.currentDay = payload.day || state.currentDay;
+  renderDayEditor();
+  if (state.currentProject) await loadDays(state.currentProject.id);
+  return state.currentDay;
+};
+
+const moveCurrentMedia = async (mediaId, direction) => {
+  if (!state.currentDay || !Array.isArray(state.currentDay.media)) return;
+  const ids = state.currentDay.media.map((item) => Number(item.id));
+  const index = ids.indexOf(Number(mediaId));
+  if (index < 0) return;
+  const targetIndex = direction === 'up' ? index - 1 : index + 1;
+  if (targetIndex < 0 || targetIndex >= ids.length) return;
+  const nextIds = [...ids];
+  [nextIds[index], nextIds[targetIndex]] = [nextIds[targetIndex], nextIds[index]];
+  await reorderCurrentMedia(nextIds);
+};
 
 const setAuthUi = (authenticated) => {
   state.authenticated = !!authenticated;
@@ -316,6 +340,7 @@ const renderProjectForm = () => {
   const p = state.currentProject;
   if (!p) {
     el.projectPanel.classList.add('hidden');
+    el.projectDeleteBtn.disabled = true;
     return;
   }
   el.projectPanel.classList.remove('hidden');
@@ -331,6 +356,8 @@ const renderProjectForm = () => {
   el.projectPrimaryLang.value = p.primary_lang || 'it';
   el.projectPublicBasePath.value = p.public_base_path || '';
   el.projectIntroText.value = p.intro_text || '';
+  el.projectAfterJourneyTitle.value = p.after_journey_title || '';
+  el.projectAfterJourneyText.value = p.after_journey_text || '';
   const previewUrl = p.preview_url || '';
   const publishedUrl = p.published_url || '';
   el.projectPreviewLink.href = previewUrl;
@@ -341,6 +368,7 @@ const renderProjectForm = () => {
   el.projectPublishedLink.classList.toggle('hidden', !publishedUrl);
   el.projectPreviewBtn.disabled = !previewUrl;
   el.projectPublishBtn.disabled = false;
+  el.projectDeleteBtn.disabled = false;
 };
 
 const renderDays = () => {
@@ -374,6 +402,7 @@ const renderDayEditor = () => {
   if (!day) {
     el.dayEditorTitle.textContent = 'Seleziona un giorno';
     el.dayEditorMeta.textContent = '';
+    el.dayDeleteBtn.classList.add('hidden');
     el.dayForm.reset();
     el.mediaList.innerHTML = '<div class="empty-state">Nessun giorno selezionato.</div>';
     el.jobsList.innerHTML = '<div class="empty-state">Nessun job.</div>';
@@ -384,6 +413,7 @@ const renderDayEditor = () => {
   }
   el.dayEditorTitle.textContent = day.title || day.date || 'Giorno';
   el.dayEditorMeta.textContent = `${day.status || 'draft'} · ${day.processing_state || 'idle'}`;
+  el.dayDeleteBtn.classList.remove('hidden');
   el.dayDate.value = day.date || '';
   el.dayNumber.value = day.day_number || '';
   el.dayTitle.value = day.title || '';
@@ -400,18 +430,56 @@ const renderDayEditor = () => {
   el.dayNotesPractical.value = day.notes_practical || '';
 
   const media = Array.isArray(day.media) ? day.media : [];
-  el.mediaList.innerHTML = media.length ? media.map((item) => `
-    <div class="resource-item">
-      ${item.type === 'image' && item.thumb_url ? `<img class="resource-item__thumb" src="${escapeHtml(item.thumb_url)}" alt="${escapeHtml(item.source_filename)}" loading="lazy" />` : ''}
-      ${item.type === 'video' && item.poster_url ? `<img class="resource-item__thumb" src="${escapeHtml(item.poster_url)}" alt="${escapeHtml(item.source_filename)}" loading="lazy" />` : ''}
-      <strong>${escapeHtml(item.source_filename)}</strong>
-      <div class="resource-item__meta">${escapeHtml(item.type)} · ${escapeHtml(item.processing_state)} · ${Number(item.size_bytes || 0)} bytes</div>
-      <div class="resource-item__meta">${escapeHtml(item.captured_at || 'captured_at assente')}</div>
-      <div class="resource-item__meta">${escapeHtml(item.place_label || 'place assente')}</div>
-      ${item.duration_sec ? `<div class="resource-item__meta">durata ${Number(item.duration_sec).toFixed(1)}s</div>` : ''}
-      ${item.error_text ? `<div class="resource-item__meta resource-item__meta--error">${escapeHtml(item.error_text)}</div>` : ''}
+  el.mediaList.innerHTML = media.length ? media.map((item, index) => `
+    <div class="resource-item resource-item--media">
+      <div class="resource-item__content">
+        ${item.type === 'image' && item.thumb_url ? `<img class="resource-item__thumb" src="${escapeHtml(item.thumb_url)}" alt="${escapeHtml(item.source_filename)}" loading="lazy" />` : ''}
+        ${item.type === 'video' && item.poster_url ? `<img class="resource-item__thumb" src="${escapeHtml(item.poster_url)}" alt="${escapeHtml(item.source_filename)}" loading="lazy" />` : ''}
+        <strong>${escapeHtml(item.source_filename)}</strong>
+        <div class="resource-item__meta">${escapeHtml(item.type)} · ${escapeHtml(item.processing_state)} · ${Number(item.size_bytes || 0)} bytes</div>
+        <div class="resource-item__meta">${escapeHtml(item.captured_at || 'captured_at assente')}</div>
+        <div class="resource-item__meta">${escapeHtml(item.place_label || 'place assente')}</div>
+        ${item.duration_sec ? `<div class="resource-item__meta">durata ${Number(item.duration_sec).toFixed(1)}s</div>` : ''}
+        ${item.error_text ? `<div class="resource-item__meta resource-item__meta--error">${escapeHtml(item.error_text)}</div>` : ''}
+      </div>
+      <div class="resource-item__actions">
+        <button type="button" class="btn btn--small" data-media-move="up" data-media-id="${item.id}" ${index === 0 ? 'disabled' : ''}>Su</button>
+        <button type="button" class="btn btn--small" data-media-move="down" data-media-id="${item.id}" ${index === media.length - 1 ? 'disabled' : ''}>Giu</button>
+        <button type="button" class="btn btn--small btn--danger" data-media-delete="${item.id}">Elimina</button>
+      </div>
     </div>
   `).join('') : '<div class="empty-state">Nessun media caricato.</div>';
+
+  el.mediaList.querySelectorAll('[data-media-move]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const mediaId = Number(button.getAttribute('data-media-id') || 0);
+      const direction = button.getAttribute('data-media-move') || 'up';
+      if (!mediaId) return;
+      try {
+        await moveCurrentMedia(mediaId, direction);
+        showStatus('Ordine media aggiornato.');
+      } catch (error) {
+        showStatus(error.message || String(error), true);
+      }
+    });
+  });
+
+  el.mediaList.querySelectorAll('[data-media-delete]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const mediaId = Number(button.getAttribute('data-media-delete') || 0);
+      if (!mediaId) return;
+      if (!confirmDanger('Eliminare questo media? Questa azione non si puo annullare.')) return;
+      try {
+        const payload = await apiFetch(`media/${mediaId}`, { method: 'DELETE' });
+        state.currentDay = payload.day || state.currentDay;
+        renderDayEditor();
+        if (state.currentProject) await loadDays(state.currentProject.id);
+        showStatus('Media eliminato.');
+      } catch (error) {
+        showStatus(error.message || String(error), true);
+      }
+    });
+  });
 
   const jobs = Array.isArray(day.jobs) ? day.jobs : [];
   el.jobsList.innerHTML = jobs.length ? jobs.map((job) => `
@@ -435,6 +503,13 @@ const loadProjects = async () => {
     if (refreshed) {
       state.currentProject = { ...state.currentProject, ...refreshed };
       renderProjectForm();
+    } else {
+      state.currentProject = null;
+      state.currentDays = [];
+      state.currentDay = null;
+      renderProjectForm();
+      renderDays();
+      renderDayEditor();
     }
   }
 };
@@ -532,7 +607,9 @@ el.projectForm.addEventListener('submit', async (event) => {
       author_name: el.projectAuthorName.value,
       primary_lang: el.projectPrimaryLang.value,
       public_base_path: el.projectPublicBasePath.value,
-      intro_text: el.projectIntroText.value
+      intro_text: el.projectIntroText.value,
+      after_journey_title: el.projectAfterJourneyTitle.value,
+      after_journey_text: el.projectAfterJourneyText.value
     });
     state.currentProject = payload.project || state.currentProject;
     showStatus('Progetto salvato.');
@@ -556,6 +633,25 @@ el.projectPublishBtn.addEventListener('click', async () => {
     renderProjectForm();
     await loadProjects();
     showStatus(`Progetto pubblicato. URL: ${payload.project && payload.project.published_url ? payload.project.published_url : ''}`);
+  } catch (error) {
+    showStatus(error.message || String(error), true);
+  }
+});
+
+el.projectDeleteBtn.addEventListener('click', async () => {
+  if (!state.currentProject) return;
+  const project = state.currentProject;
+  if (!confirmDanger(`Eliminare il progetto "${project.title}"? Questa azione non si puo annullare.`)) return;
+  try {
+    await apiFetch(`projects/${project.id}`, { method: 'DELETE' });
+    state.currentProject = null;
+    state.currentDays = [];
+    state.currentDay = null;
+    renderProjectForm();
+    renderDays();
+    renderDayEditor();
+    showStatus('Progetto eliminato.');
+    await loadProjects();
   } catch (error) {
     showStatus(error.message || String(error), true);
   }
@@ -601,6 +697,29 @@ el.dayForm.addEventListener('submit', async (event) => {
     await processDay(state.currentDay.id);
     if (state.currentProject) await loadDays(state.currentProject.id);
     await loadDay(state.currentDay.id);
+  } catch (error) {
+    showStatus(error.message || String(error), true);
+  }
+});
+
+el.dayDeleteBtn.addEventListener('click', async () => {
+  if (!state.currentDay || !state.currentProject) return;
+  const dayId = Number(state.currentDay.id);
+  const projectId = Number(state.currentProject.id);
+  const currentIndex = state.currentDays.findIndex((item) => Number(item.id) === dayId);
+  if (!confirmDanger(`Eliminare il giorno ${state.currentDay.date || ''}? Questa azione non si puo annullare.`)) return;
+  try {
+    await apiFetch(`days/${dayId}`, { method: 'DELETE' });
+    showStatus('Giorno eliminato.');
+    state.currentDay = null;
+    await loadDays(projectId);
+    const remaining = state.currentDays;
+    if (remaining.length) {
+      const fallback = remaining[Math.min(currentIndex, remaining.length - 1)];
+      if (fallback && fallback.id) await loadDay(fallback.id);
+    } else {
+      renderDayEditor();
+    }
   } catch (error) {
     showStatus(error.message || String(error), true);
   }

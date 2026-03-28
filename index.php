@@ -63,6 +63,7 @@ declare(strict_types=1);
         <div class="actions-row project-links-row">
           <button id="project-preview-btn" class="btn" type="button">Apri preview</button>
           <button id="project-publish-btn" class="btn btn--primary" type="button">Pubblica progetto</button>
+          <button id="project-delete-btn" class="btn btn--danger" type="button">Elimina progetto</button>
           <a id="project-preview-link" class="inline-link hidden" target="_blank" rel="noopener noreferrer">Preview URL</a>
           <a id="project-published-link" class="inline-link hidden" target="_blank" rel="noopener noreferrer">Published URL</a>
         </div>
@@ -101,6 +102,14 @@ declare(strict_types=1);
             <span>Intro</span>
             <textarea id="project-intro-text" rows="4"></textarea>
           </label>
+          <label class="full">
+            <span>Titolo sezione finale</span>
+            <input id="project-after-journey-title" type="text" placeholder="Dopo il viaggio" />
+          </label>
+          <label class="full">
+            <span>Testo sezione finale</span>
+            <textarea id="project-after-journey-text" rows="4" placeholder="Scrivi qui cosa è rimasto del viaggio, cosa è cambiato o come lo guardi a distanza."></textarea>
+          </label>
           <div class="full actions-row">
             <button type="submit" class="btn btn--primary">Salva progetto</button>
           </div>
@@ -136,6 +145,7 @@ declare(strict_types=1);
                 <h3 id="day-editor-title">Seleziona un giorno</h3>
                 <div id="day-editor-meta" class="muted small"></div>
               </div>
+              <button id="day-delete-btn" class="btn btn--danger hidden" type="button">Elimina giorno</button>
             </div>
 
             <form id="day-form" class="grid-form">

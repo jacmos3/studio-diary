@@ -28,6 +28,12 @@ textarea {
   font: inherit;
 }
 
+button,
+[role="button"] {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 .hidden {
   display: none !important;
 }
@@ -171,6 +177,7 @@ textarea {
   color: var(--ink);
   cursor: pointer;
   font-weight: 700;
+  transition: transform 140ms ease, box-shadow 140ms ease, background-color 140ms ease, border-color 140ms ease;
 }
 
 .btn--primary {
@@ -181,6 +188,28 @@ textarea {
 
 .btn--ghost {
   background: #fffaf2;
+}
+
+.btn--danger {
+  border-color: rgba(159, 27, 27, 0.2);
+  background: #fff3f3;
+  color: var(--danger);
+}
+
+.btn--small {
+  padding: 8px 12px;
+  font-size: 0.86rem;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.btn:not(:disabled):hover,
+.btn:not(:disabled):focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(31, 26, 22, 0.08);
 }
 
 .project-list,
@@ -204,6 +233,16 @@ textarea {
   gap: 8px;
 }
 
+.resource-item--media {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.resource-item__content {
+  display: grid;
+  gap: 8px;
+}
+
 .resource-item__thumb {
   width: 100%;
   max-width: 220px;
@@ -212,6 +251,12 @@ textarea {
   border-radius: 10px;
   border: 1px solid rgba(31, 26, 22, 0.1);
   background: #f4eee5;
+}
+
+.resource-item__actions {
+  display: grid;
+  gap: 8px;
+  justify-items: stretch;
 }
 
 .project-item button,
@@ -223,6 +268,14 @@ textarea {
   background: transparent;
   color: inherit;
   cursor: pointer;
+  transition: opacity 140ms ease;
+}
+
+.project-item button:hover,
+.project-item button:focus-visible,
+.day-item button:hover,
+.day-item button:focus-visible {
+  opacity: 0.9;
 }
 
 .project-item.is-active,
@@ -290,6 +343,7 @@ textarea {
   color: var(--accent);
   text-decoration: none;
   font-weight: 700;
+  cursor: pointer;
 }
 
 .inline-link:hover {
@@ -326,6 +380,7 @@ textarea {
 .chip--button {
   border: 1px solid rgba(31, 95, 91, 0.22);
   cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease;
 }
 
 .chip--suggested {
@@ -336,6 +391,7 @@ textarea {
 
 .chip--button:hover {
   background: rgba(31, 95, 91, 0.18);
+  transform: translateY(-1px);
 }
 
 .chip--removable {
@@ -349,6 +405,16 @@ textarea {
   cursor: pointer;
   font-size: 0.95rem;
   line-height: 1;
+}
+
+.btn:focus-visible,
+.project-item button:focus-visible,
+.day-item button:focus-visible,
+.chip--button:focus-visible,
+.chip__remove:focus-visible,
+.inline-link:focus-visible {
+  outline: 2px solid rgba(31, 95, 91, 0.45);
+  outline-offset: 2px;
 }
 
 .chip-input-row {
@@ -430,5 +496,13 @@ textarea {
 
   .grid-form {
     grid-template-columns: 1fr;
+  }
+
+  .resource-item--media {
+    grid-template-columns: 1fr;
+  }
+
+  .resource-item__actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }

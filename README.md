@@ -59,7 +59,8 @@ Per riallineare la snapshot locale del renderer senza farlo a mano:
 
 ```bash
 python3 scripts/sync-renderer.py '/percorso/al/repo-renderer/site'
-node --check renderer/app.js
+node --check renderer/renderer-day-utils.js
+node --check renderer/renderer-core.js
 ```
 
 Lo script:

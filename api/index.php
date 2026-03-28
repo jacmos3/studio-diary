@@ -69,6 +69,10 @@ if (preg_match('#^/projects/(\d+)$#', $path, $m)) {
     $project = studio_update_project($projectId, studio_read_json_body());
     studio_json_response(200, ['project' => $project]);
   }
+  if ($method === 'DELETE') {
+    studio_delete_project($projectId);
+    studio_json_response(200, ['ok' => true]);
+  }
 }
 
 if (preg_match('#^/projects/(\d+)/preview$#', $path, $m) && $method === 'GET') {
@@ -106,6 +110,10 @@ if (preg_match('#^/days/(\d+)$#', $path, $m)) {
     $day = studio_update_day($dayId, studio_read_json_body());
     studio_json_response(200, ['day' => $day]);
   }
+  if ($method === 'DELETE') {
+    $projectId = studio_delete_day($dayId);
+    studio_json_response(200, ['ok' => true, 'project_id' => $projectId]);
+  }
 }
 
 if (preg_match('#^/days/(\d+)/process$#', $path, $m) && $method === 'POST') {
@@ -124,6 +132,19 @@ if (preg_match('#^/days/(\d+)/media$#', $path, $m) && $method === 'POST') {
   $dayId = (int)$m[1];
   $result = studio_store_uploaded_media($dayId, $_FILES);
   studio_json_response(201, $result);
+}
+
+if (preg_match('#^/days/(\d+)/media/order$#', $path, $m) && $method === 'PATCH') {
+  $dayId = (int)$m[1];
+  $payload = studio_read_json_body();
+  $day = studio_reorder_day_media($dayId, is_array($payload['media_ids'] ?? null) ? $payload['media_ids'] : []);
+  studio_json_response(200, ['ok' => true, 'day' => $day]);
+}
+
+if (preg_match('#^/media/(\d+)$#', $path, $m) && $method === 'DELETE') {
+  $mediaId = (int)$m[1];
+  $day = studio_delete_media($mediaId);
+  studio_json_response(200, ['ok' => true, 'day' => $day]);
 }
 
 studio_json_response(404, ['error' => 'Not found']);

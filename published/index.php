@@ -12,5 +12,6 @@ if (!$project || $project['status'] !== 'published') {
   exit;
 }
 
+$studioRenderMode = 'published';
 $_GET['project'] = $slug;
 require dirname(__DIR__) . '/preview/index.php';
