@@ -66,12 +66,18 @@ declare(strict_types=1);
           <div id="project-meta" class="project-meta"></div>
         </div>
 
-        <div class="actions-row project-links-row">
-          <button id="project-preview-btn" class="btn" type="button">Apri preview</button>
-          <button id="project-publish-btn" class="btn btn--primary" type="button">Pubblica progetto</button>
-          <button id="project-delete-btn" class="btn btn--danger" type="button">Elimina progetto</button>
-          <a id="project-preview-link" class="inline-link hidden" target="_blank" rel="noopener noreferrer">Preview URL</a>
-          <a id="project-published-link" class="inline-link hidden" target="_blank" rel="noopener noreferrer">Published URL</a>
+        <div class="project-actions-card">
+          <div class="project-actions-card__copy">
+            <h3>Preview e pubblicazione</h3>
+            <p>La preview serve per controllare il diario mentre lavori. La versione pubblicata è quella finale da condividere.</p>
+          </div>
+          <div class="actions-row project-links-row">
+            <button id="project-preview-btn" class="btn" type="button">Apri anteprima</button>
+            <button id="project-publish-btn" class="btn btn--primary" type="button">Rigenera versione pubblicata</button>
+            <button id="project-delete-btn" class="btn btn--danger" type="button">Elimina progetto</button>
+            <a id="project-preview-link" class="inline-link hidden" target="_blank" rel="noopener noreferrer">Apri URL anteprima</a>
+            <a id="project-published-link" class="inline-link hidden" target="_blank" rel="noopener noreferrer">Apri URL pubblicato</a>
+          </div>
         </div>
 
         <form id="project-form" class="grid-form">
@@ -155,6 +161,10 @@ declare(strict_types=1);
             </div>
 
             <form id="day-form" class="grid-form">
+              <div class="form-section-title full">
+                <h4>Struttura del giorno</h4>
+                <p>Qui definisci i campi base che tengono in ordine il diario.</p>
+              </div>
               <label>
                 <span>Data</span>
                 <input id="day-date" type="date" />
@@ -175,10 +185,10 @@ declare(strict_types=1);
                 <span>Canonical path</span>
                 <input id="day-canonical-path" type="text" />
               </label>
-              <label class="full">
-                <span>Link Strava</span>
-                <input id="day-strava-url" type="url" placeholder="https://www.strava.com/activities/..." />
-              </label>
+              <div class="form-section-title full">
+                <h4>Persone</h4>
+                <p>Aggiungi i nomi che vuoi far emergere nel giorno e controlla come compaiono nel testo.</p>
+              </div>
               <div class="full">
                 <span class="field-label">Persone citate</span>
                 <div id="day-people-suggestions" class="chips-row chips-row--suggestions"></div>
@@ -190,6 +200,10 @@ declare(strict_types=1);
                 </div>
                 <div id="day-people-validation" class="people-validation"></div>
                 <div id="day-people-text-preview" class="people-text-preview"></div>
+              </div>
+              <div class="form-section-title full">
+                <h4>Testo del giorno</h4>
+                <p>Qui costruisci il nucleo narrativo: cosa è successo, dove eri e cosa vuoi ricordare.</p>
               </div>
               <label class="full">
                 <span>Summary</span>
@@ -222,7 +236,12 @@ declare(strict_types=1);
 
             <div class="split-block top-gap">
               <div>
-                <h4>Media</h4>
+                <div class="resource-block-head">
+                  <div>
+                    <h4>Media</h4>
+                    <p>Foto e video del giorno, nell'ordine in cui vuoi mostrarli.</p>
+                  </div>
+                </div>
                 <form id="media-upload-form" class="stack">
                   <input id="media-files" type="file" multiple />
                   <button type="submit" class="btn btn--primary">Carica file</button>
@@ -239,7 +258,12 @@ declare(strict_types=1);
                   <div id="track-preview-map" class="track-preview-map hidden" aria-label="Anteprima mappa tracce"></div>
                 </div>
                 <div>
-                  <h4>Tracce GPX</h4>
+                  <div class="resource-block-head">
+                    <div>
+                      <h4>Tracce GPX</h4>
+                      <p>Importa i GPX del giorno per agganciare davvero il percorso al diario.</p>
+                    </div>
+                  </div>
                   <form id="track-upload-form" class="stack">
                     <input id="track-files" type="file" accept=".gpx,application/gpx+xml" multiple />
                     <button type="submit" class="btn btn--primary">Importa GPX</button>
@@ -247,7 +271,12 @@ declare(strict_types=1);
                   <div id="tracks-list" class="resource-list top-gap"></div>
                 </div>
                 <div>
-                  <h4>Job in coda</h4>
+                  <div class="resource-block-head">
+                    <div>
+                      <h4>Job in coda</h4>
+                      <p>Qui vedi il processing tecnico generato dai salvataggi e dai caricamenti.</p>
+                    </div>
+                  </div>
                   <div id="jobs-list" class="resource-list"></div>
                 </div>
               </div>

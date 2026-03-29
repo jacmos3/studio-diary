@@ -50,7 +50,6 @@ const el = {
   dayTitle: document.getElementById('day-title'),
   dayArrivalPlace: document.getElementById('day-arrival-place'),
   dayCanonicalPath: document.getElementById('day-canonical-path'),
-  dayStravaUrl: document.getElementById('day-strava-url'),
   dayPeopleSuggestions: document.getElementById('day-people-suggestions'),
   dayPeopleChips: document.getElementById('day-people-chips'),
   dayPeopleInput: document.getElementById('day-people-input'),
@@ -482,10 +481,10 @@ const renderProjectForm = () => {
   const previewUrl = p.preview_url || '';
   const publishedUrl = p.published_url || '';
   el.projectPreviewLink.href = previewUrl;
-  el.projectPreviewLink.textContent = previewUrl;
+  el.projectPreviewLink.textContent = 'Apri URL anteprima';
   el.projectPreviewLink.classList.toggle('hidden', !previewUrl);
   el.projectPublishedLink.href = publishedUrl;
-  el.projectPublishedLink.textContent = publishedUrl;
+  el.projectPublishedLink.textContent = 'Apri URL pubblicato';
   el.projectPublishedLink.classList.toggle('hidden', !publishedUrl);
   el.projectPreviewBtn.disabled = !previewUrl;
   el.projectPublishBtn.disabled = false;
@@ -542,7 +541,6 @@ const renderDayEditor = () => {
   el.dayTitle.value = day.title || '';
   el.dayArrivalPlace.value = day.arrival_place || '';
   el.dayCanonicalPath.value = day.canonical_path || '';
-  el.dayStravaUrl.value = day.strava_url || '';
   state.dayPeople = uniquePeople(Array.isArray(day.people) ? day.people : []);
   state.detectedPeopleSuggestions = [];
   el.daySummary.value = day.summary || '';
@@ -793,7 +791,7 @@ el.projectPublishBtn.addEventListener('click', async () => {
     state.currentProject = payload.project || state.currentProject;
     renderProjectForm();
     await loadProjects();
-    showStatus(`Progetto pubblicato. URL: ${payload.project && payload.project.published_url ? payload.project.published_url : ''}`);
+    showStatus('Versione pubblicata rigenerata.');
   } catch (error) {
     showStatus(error.message || String(error), true);
   }
@@ -844,7 +842,6 @@ el.dayForm.addEventListener('submit', async (event) => {
       title: el.dayTitle.value,
       arrival_place: el.dayArrivalPlace.value,
       canonical_path: el.dayCanonicalPath.value,
-      strava_url: el.dayStravaUrl.value,
       people: uniquePeople(state.dayPeople),
       summary: el.daySummary.value,
       notes_where: el.dayNotesWhere.value,

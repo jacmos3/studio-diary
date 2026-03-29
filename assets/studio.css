@@ -125,6 +125,31 @@ button,
   font-size: 0.9rem;
 }
 
+.project-actions-card {
+  margin-bottom: 16px;
+  padding: 16px 18px;
+  border: 1px solid rgba(31, 26, 22, 0.08);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fffdf9 0%, #f6f0e8 100%);
+}
+
+.project-actions-card__copy {
+  margin-bottom: 12px;
+}
+
+.project-actions-card__copy h3 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+}
+
+.project-actions-card__copy p,
+.resource-block-head p,
+.form-section-title p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 .stack {
   display: grid;
   gap: 12px;
@@ -151,6 +176,16 @@ label span {
   font-size: 0.88rem;
   color: var(--muted);
   font-weight: 600;
+}
+
+.form-section-title {
+  padding-top: 6px;
+  border-top: 1px solid rgba(31, 26, 22, 0.08);
+}
+
+.form-section-title h4 {
+  margin: 0 0 4px;
+  font-size: 0.98rem;
 }
 
 input,
@@ -369,7 +404,7 @@ textarea {
 }
 
 .project-links-row {
-  margin-bottom: 16px;
+  align-items: center;
 }
 
 .inline-link {
@@ -377,6 +412,10 @@ textarea {
   text-decoration: none;
   font-weight: 700;
   cursor: pointer;
+}
+
+.resource-block-head {
+  margin-bottom: 10px;
 }
 
 .inline-link:hover {
