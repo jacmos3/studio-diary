@@ -17,6 +17,7 @@ const el = {
   projectCreateForm: document.getElementById('project-create-form'),
   projectCreateTitle: document.getElementById('project-create-title'),
   projectCreateSlug: document.getElementById('project-create-slug'),
+  projectCreateDemoBtn: document.getElementById('project-create-demo-btn'),
   logoutBtn: document.getElementById('logout-btn'),
   statusBanner: document.getElementById('status-banner'),
   projectPanel: document.getElementById('project-panel'),
@@ -734,6 +735,18 @@ el.logoutBtn.addEventListener('click', async () => {
     renderDayEditor();
     setAuthUi(false);
     showStatus('Sessione chiusa.');
+  } catch (error) {
+    showStatus(error.message || String(error), true);
+  }
+});
+
+
+el.projectCreateDemoBtn.addEventListener('click', async () => {
+  try {
+    const payload = await apiJson('projects/demo', 'POST', {});
+    showStatus('Demo pronta creata e pubblicata.');
+    await loadProjects();
+    if (payload.project && payload.project.id) await loadProject(payload.project.id);
   } catch (error) {
     showStatus(error.message || String(error), true);
   }

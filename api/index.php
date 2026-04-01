@@ -59,6 +59,12 @@ try {
     studio_json_response(201, ['project' => $project]);
   }
 
+  if ($path === '/projects/demo' && $method === 'POST') {
+    $payload = studio_read_json_body();
+    $project = studio_create_demo_project(is_array($payload) ? $payload : []);
+    studio_json_response(201, ['project' => $project]);
+  }
+
   if (preg_match('#^/projects/(\d+)$#', $path, $m)) {
     $projectId = (int)$m[1];
     if ($method === 'GET') {

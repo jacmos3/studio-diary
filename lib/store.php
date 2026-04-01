@@ -829,6 +829,91 @@ function studio_update_project(int $projectId, array $payload): array {
   return studio_get_project($projectId) ?? throw new RuntimeException('Project not found');
 }
 
+
+function studio_demo_project_payload(): array {
+  return [
+    'title' => 'Demo Builder Camino',
+    'subtitle' => 'Progetto demo generato automaticamente per vedere subito come funziona il builder.',
+    'author_name' => 'Demo author',
+    'intro_text' => 'Questa demo serve per vedere la struttura del diario senza partire da una pagina vuota.',
+    'after_journey_title' => 'Dopo il viaggio',
+    'after_journey_text' => 'Questo blocco finale resta volutamente semplice: serve solo a mostrare dove chiudere il racconto una volta terminato il cammino.',
+  ];
+}
+
+function studio_demo_day_payloads(string $startDate): array {
+  $base = new DateTimeImmutable($startDate ?: gmdate('Y-m-d'));
+  $dates = [
+    $base,
+    $base->modify('+1 day'),
+    $base->modify('+2 day'),
+  ];
+  return [
+    [
+      'date' => $dates[0]->format('Y-m-d'),
+      'title' => 'Primo giorno demo',
+      'arrival_place' => 'Pamplona',
+      'summary' => 'Primo giorno creato automaticamente per dare subito forma al diario.',
+      'notes_where' => 'Tappa breve di esempio per vedere struttura, ritmo e blocchi del builder.',
+      'notes_scene' => 'Mi fermo un momento a guardare la strada e capisco che la cosa importante non e riempire tutto, ma partire con ordine.',
+      'notes_sensory' => 'Aria chiara del mattino, rumore regolare dei passi e zaino ancora troppo presente sulle spalle.',
+      'notes_learned' => 'Un diario ben impostato nasce da pochi elementi chiari, non da una massa di testo casuale.',
+      'notes_practical' => 'Usa questo giorno per sostituire i placeholder con le tue informazioni vere.',
+    ],
+    [
+      'date' => $dates[1]->format('Y-m-d'),
+      'title' => 'Secondo giorno demo',
+      'arrival_place' => 'Puente la Reina',
+      'summary' => 'Secondo giorno d’esempio, utile per vedere come cambia il diario quando iniziano ad accumularsi le tappe.',
+      'notes_where' => 'Una tappa sintetica ma sufficiente per testare contenuti, timeline e CTA finali.',
+      'notes_scene' => 'Il ritmo si assesta e il diario comincia a sembrare un racconto, non solo un contenitore di dati.',
+      'notes_sensory' => 'Luce piu calda, piedi piu presenti e una sensazione meno nervosa del primo giorno.',
+      'notes_learned' => 'Quando il diario ha due o tre giorni, si capisce subito se l’impianto regge davvero.',
+      'notes_practical' => 'Qui puoi testare media, persone e tracce senza paura di sporcare un progetto reale.',
+    ],
+    [
+      'date' => $dates[2]->format('Y-m-d'),
+      'title' => 'Terzo giorno demo',
+      'arrival_place' => 'Estella',
+      'summary' => 'Terzo giorno seed per avere una demo pronta da mostrare o da usare come base di lavoro.',
+      'notes_where' => 'Questo giorno esiste soprattutto per evitare una demo troppo povera con una sola pagina.',
+      'notes_scene' => 'A questo punto la struttura del diario e abbastanza ricca da farti capire cosa succede quando il progetto cresce.',
+      'notes_sensory' => 'Strada lunga, rumore del vento e un ritmo piu continuo nelle pause e nella scrittura.',
+      'notes_learned' => 'Una demo utile non deve essere perfetta: deve essere abbastanza concreta da far capire il prodotto.',
+      'notes_practical' => 'Puoi pubblicarla subito oppure usarla come base da svuotare e riempire con il tuo viaggio vero.',
+    ],
+  ];
+}
+
+function studio_create_demo_project(array $payload = []): array {
+  $title = trim((string)($payload['title'] ?? 'Demo Builder Camino'));
+  $slug = studio_slugify((string)($payload['slug'] ?? 'demo-builder-' . gmdate('Ymd-His')));
+  $startDate = substr(trim((string)($payload['start_date'] ?? gmdate('Y-m-d'))), 0, 10);
+  if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $startDate)) {
+    $startDate = gmdate('Y-m-d');
+  }
+
+  $project = studio_create_project([
+    'title' => $title,
+    'slug' => $slug,
+  ]);
+
+  $project = studio_update_project((int)$project['id'], array_merge(
+    studio_demo_project_payload(),
+    [
+      'title' => $title,
+      'slug' => $slug,
+    ]
+  ));
+
+  foreach (studio_demo_day_payloads($startDate) as $seedDay) {
+    $day = studio_create_day((int)$project['id'], ['date' => $seedDay['date']]);
+    studio_update_day((int)$day['id'], $seedDay);
+  }
+
+  return studio_publish_project((int)$project['id']);
+}
+
 function studio_delete_project(int $projectId): void {
   $pdo = studio_db();
   $project = studio_get_project($projectId);

@@ -155,6 +155,11 @@ button,
   gap: 12px;
 }
 
+.stack-actions {
+  display: grid;
+  gap: 10px;
+}
+
 .top-gap {
   margin-top: 16px;
 }

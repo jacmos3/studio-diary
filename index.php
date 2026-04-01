@@ -49,7 +49,10 @@ declare(strict_types=1);
             <span>Slug</span>
             <input id="project-create-slug" type="text" placeholder="diario-andalusia-2026" />
           </label>
-          <button type="submit" class="btn btn--primary">Crea progetto</button>
+          <div class="stack-actions">
+            <button type="submit" class="btn btn--primary">Crea progetto</button>
+            <button id="project-create-demo-btn" type="button" class="btn btn--ghost">Crea demo pronta</button>
+          </div>
         </form>
       </section>
     </aside>
