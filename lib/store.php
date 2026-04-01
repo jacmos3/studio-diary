@@ -1353,6 +1353,30 @@ function studio_uploaded_files(array $files): array {
   return $out;
 }
 
+function studio_detect_uploaded_mime(string $path, string $fallback = ''): string {
+  $fallback = trim($fallback);
+  if (is_file($path)) {
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $detected = trim((string)$finfo->file($path));
+    if ($detected !== '') {
+      return $detected;
+    }
+  }
+  return $fallback;
+}
+
+function studio_media_kind_from_filename_and_mime(string $filename, string $mime): string {
+  $mime = strtolower(trim($mime));
+  if (str_starts_with($mime, 'video/')) return 'video';
+  if (str_starts_with($mime, 'image/')) return 'image';
+
+  $ext = strtolower((string)pathinfo($filename, PATHINFO_EXTENSION));
+  if (in_array($ext, ['mp4', 'mov', 'm4v', 'webm', 'avi', 'mkv'], true)) {
+    return 'video';
+  }
+  return 'image';
+}
+
 function studio_store_uploaded_media(int $dayId, array $files): array {
   $pdo = studio_db();
   $day = studio_get_day($dayId, false);
@@ -1379,8 +1403,8 @@ function studio_store_uploaded_media(int $dayId, array $files): array {
     if (!move_uploaded_file((string)$file['tmp_name'], $destination)) {
       throw new RuntimeException('Impossibile salvare il file uploadato');
     }
-    $mime = trim((string)$file['type']);
-    $kind = str_starts_with($mime, 'video/') ? 'video' : 'image';
+    $mime = studio_detect_uploaded_mime($destination, trim((string)$file['type']));
+    $kind = studio_media_kind_from_filename_and_mime((string)$file['name'], $mime);
     $insert->execute([
       ':project_id' => (int)$project['id'],
       ':day_id' => $dayId,
